@@ -1,23 +1,24 @@
 from ROOT import RDataFrame, TChain, TH1D, TCanvas, TFile, RooStats
 import ROOT
+import numpy as np
 
 # columns: { "DecR", "E", "E3H", "EPi", "GenPt", "L", "M", "Pt", "Px", "Px3H", "PxPi", "Py", "Py3H", "PyPi", "Pz", "Pz3H", "PzPi", "ct", "fCentralityFT0A", "fCentralityFT0C", "fCentralityFT0M", "fDca3H", "fDcaPi", "fDcaV0Daug", "fEta3H", "fEtaPi", "fFlags", "fGenEta", "fGenPhi", "fGenPt", "fGenPt3H", "fGenXDecVtx", "fGenYDecVtx", "fGenZDecVtx", "fITSclusterSizes3H", "fITSclusterSizesPi", "fIsMatter", "fIsReco", "fIsSignal", "fMassTrTOF", "fNSigma3H", "fNTPCclus3H", "fNTPCclusPi", "P3H", "fPhi3H", "fPhiPi", "fPt3H", "fPtPi", "fSurvivedEventSelection", "fTPCchi3H", "fTPCmom3H", "fTPCmomPi", "fTPCsignal3H", "fTPCsignalPi", "fXDecVtx", "fXPrimVtx", "fYDecVtx", "fYPrimVtx", "fZDecVtx", "fZPrimVtx", "genMatter", "mTOF3H_centred", "signedP3H" }
 
 ROOT.EnableImplicitMT()
 eventCuts = "fCentralityFT0C < 50 && fCentralityFT0C > 0"
 cuts = "fNTPCclusPi > 60 && fNTPCclus3H > 100 && (MLambda0 < 1.1 || MLambda0 > 1.13) && (MK0s < 0.47 || MK0s > 0.53) && std::abs(fDcaPi) > 0.2 && cosPA > 0.9995 && fDcaV0Daug < 0.2 && std::abs(alpha) < 0.94 && qt > 0.005"
-fileData = TFile('data/AO2D.root')
-fileMC = TFile('mc/AO2D_nocospa.root')
+fileData = TFile('/data3/fmazzasc/lambdann/data/AO2D.root')
+fileMC = TFile('/data3/fmazzasc/lambdann/mc/AO2D.root')
 chainData = TChain('O2lnncands')
 chainMC = TChain('O2mclnncands')
 for key in fileData.GetListOfKeys() :
     keyName = key.GetName()
     if 'DF_' in keyName :
-      chainData.Add(f'data/AO2D.root/{keyName}/{chainData.GetName()}')
+      chainData.Add(f'/data3/fmazzasc/lambdann/data/AO2D.root/{keyName}/{chainData.GetName()}')
 for key in fileMC.GetListOfKeys() :
     keyName = key.GetName()
     if 'DF_' in keyName :
-      chainMC.Add(f'mc/AO2D_nocospa.root/{keyName}/{chainMC.GetName()}')
+      chainMC.Add(f'/data3/fmazzasc/lambdann/mc/AO2D.root/{keyName}/{chainMC.GetName()}')
 dfData = ROOT.RDataFrame(chainData).Define("Px3H", "fPt3H * std::cos(fPhi3H)").Define("Py3H", "fPt3H * std::sin(fPhi3H)").Define("Pz3H", "fPt3H * std::sinh(fEta3H)").Define("P3H", "std::hypot(fPt3H, Pz3H)").Define("mTOF3H_centred", "fMassTrTOF - 2.80892113298 * 2.80892113298").Define("signedP3H", "(fIsMatter * 2 - 1) * fTPCmom3H").Define("E3H", "std::hypot(P3H, 2.80892113298)").Define("EP", "std::hypot(P3H, 0.93827208816)").Define("EPiK0s", "std::hypot(P3H, 0.139570)").Define("PxPi", "fPtPi * std::cos(fPhiPi)").Define("PyPi", "fPtPi * std::sin(fPhiPi)").Define("PzPi", "fPtPi * std::sinh(fEtaPi)").Define("PPi", "std::hypot(fPtPi, PzPi)").Define("EPi", "std::hypot(PPi, 0.139570)").Define("Px", "Px3H + PxPi").Define("Py", "Py3H + PyPi").Define("Pz", "Pz3H + PzPi").Define("E", "E3H + EPi").Define("Pt", "std::hypot(Px, Py)").Define("P", "std::hypot(Pt, Pz)").Define("M", "std::sqrt(E * E - P * P)").Define("L", "std::hypot(fXDecVtx, fYDecVtx, fZDecVtx)").Define("ct", "L * 2.991 / std::hypot(Pt, Pz)").Define("DecR", "std::hypot(fXDecVtx + fXPrimVtx, fYDecVtx + fYPrimVtx)").Define("cosPA", "(Px * fXDecVtx + Py * fYDecVtx + Pz * fZDecVtx) / (P * L)").Define("MLambda0", "std::sqrt((EPi + EP) * (EPi + EP) - P * P)").Define("MK0s", "std::sqrt((EPi + EPiK0s) * (EPi + EPiK0s) - P * P)").Define("PxPos", "fIsMatter ? Px3H : PxPi").Define("PyPos", "fIsMatter ? Py3H : PyPi").Define("PzPos", "fIsMatter ? Pz3H : PzPi").Define("PxNeg", "!fIsMatter ? Px3H : PxPi").Define("PyNeg", "!fIsMatter ? Py3H : PyPi").Define("PzNeg", "!fIsMatter ? Pz3H : PzPi").Define("alpha", "(PxPos * Px + PyPos * Py + PzPos * Pz - PxNeg * Px - PyNeg * Py - PzNeg * Pz) / (PxPos * Px + PyPos * Py + PzPos * Pz + PxNeg * Px + PyNeg * Py + PzNeg * Pz)").Define("qt", "std::sqrt(std::pow(fIsMatter ? P3H : PPi ,2) - std::pow((Px * PxPos + Py * PyPos + Pz * PzPos) / P,2))") \
     .Filter(cuts).Filter(eventCuts)
 
@@ -55,13 +56,15 @@ hMassFitMC = dfRecMC.Filter("Pt > 4 && Pt < 8").Histo1D(("hMassFitMC", ";m_{^{3}
 mass = ROOT.RooRealVar("mass", "mass", 2.991, hMassFit.GetXaxis().GetXmin(), hMassFit.GetXaxis().GetXmax())
 mu = ROOT.RooRealVar("mu", "#mu", 2.991, 2.989, 2.993)
 sigma = ROOT.RooRealVar("sigma", "#sigma", 0.002, 0.001, 0.01)
-fsig = ROOT.RooRealVar("fsig", "f_{sig}", 0.001, 0., 1.)
-pol0 = ROOT.RooPolynomial("pol0", "pol0", mass, ROOT.RooArgList())
+a1 = ROOT.RooRealVar("a1", "a1", 0., -1., 1.)
+bkg = ROOT.RooPolynomial("bkg", "bkg", mass, ROOT.RooArgList(a1))
 alpha = ROOT.RooRealVar("alpha", "#alpha", 1., 0., 5.)
 n = ROOT.RooRealVar("n", "n", 1., 0., 10.)
 cb = ROOT.RooCrystalBall("cb", "cb", mass, mu, sigma, alpha, n, True)
 signal = ROOT.RooGaussian("signal", "signal", mass, mu, sigma)
-fulltpl = ROOT.RooAddPdf("fulltpl", "fulltpl", ROOT.RooArgList(cb, pol0), ROOT.RooArgList(fsig))
+n_sig = ROOT.RooRealVar("n_sig", "n_sig", 1000, 0, 1e7)
+n_bkg = ROOT.RooRealVar("n_bkg", "n_bkg", 1000, 0, 1e7)
+fulltpl = ROOT.RooAddPdf("fulltpl", "fulltpl", ROOT.RooArgList(cb, bkg), ROOT.RooArgList(n_sig, n_bkg))
 
 rooHistMC = ROOT.RooDataHist("rooHistMC", "rooHistMC", ROOT.RooArgList(mass), hMassFitMC.GetPtr())
 cb.fitTo(rooHistMC)
@@ -74,10 +77,10 @@ sigma.setConstant(True)
 print(f'chi2 MC: {frameMC.chiSquare()}')
 
 rooHistData = ROOT.RooDataHist("rooHistData", "rooHistData", ROOT.RooArgList(mass), hMassFit.GetPtr())
-pol0.fitTo(rooHistData)
+bkg.fitTo(rooHistData)
 frame = mass.frame()
 rooHistData.plotOn(frame)
-pol0.plotOn(frame)
+bkg.plotOn(frame)
 print(f'chi2: {frame.chiSquare()}')
 
 
@@ -93,20 +96,21 @@ confidence_level = 0.95
 # Create a ModelConfig
 model_config = RooStats.ModelConfig("model_config", workspace)
 model_config.SetPdf(fulltpl)
-model_config.SetParametersOfInterest(fsig)
+model_config.SetParametersOfInterest(n_sig)
 model_config.SetObservables(ROOT.RooArgSet(mass))
 model_config.SetNuisanceParameters(ROOT.RooArgSet(mu))
-oldValue = fsig.getVal()
+model_config.SetNuisanceParameters(ROOT.RooArgSet(n_bkg))
+oldValue = n_sig.getVal()
 
 # Create a null (background-only) model
 null_model = RooStats.ModelConfig("null_model", workspace)
 null_model.SetPdf(fulltpl)
-fsig.setVal(0)
-workspace.var("fsig").setVal(0)
-null_model.SetParametersOfInterest(fsig)
+n_sig.setVal(0)
+workspace.var("n_sig").setVal(0)
+null_model.SetParametersOfInterest(n_sig)
 null_model.SetObservables(ROOT.RooArgSet(mass))
 null_model.SetNuisanceParameters(ROOT.RooArgSet(mu))
-null_model.SetSnapshot(ROOT.RooArgSet(fsig))
+null_model.SetSnapshot(ROOT.RooArgSet(n_sig))
 null_model.GetParametersOfInterest().first().setVal(oldValue)
 print("Null model snapshot:")
 null_model.GetSnapshot().Print("v")
@@ -123,10 +127,6 @@ invereter = RooStats.HypoTestInverter(calculator)
 invereter.SetConfidenceLevel(confidence_level)
 invereter.UseCLs(True)
 invereter.SetVerbose(True)
-#invereter.SetFixedScan(2, 22920, 22930)  # Reduzindo o range do scan 0.050321
-# invereter.SetFixedScan(1000, 0, 22920)
-
-#invereter.SetAutoScan()
 result = invereter.GetInterval()
 
 # Print the result
@@ -136,6 +136,27 @@ error_up = result.UpperLimitEstimatedError()
 error_lower = result.LowerLimitEstimatedError()
 
 print(f"Upper limit at {confidence_level*100:.0f}% CL: {upper_limit:.2f} +- {error_up}")
+
+
+
+eff = 0.03  ## needs to be rewighted
+br = 0.25 
+delta_pt = 4
+rapidity_window = 2
+mat_antimat_fac = 2
+n_ev = 2.98e9
+
+
+
+
+
+
+
+upper_limit_corrected = upper_limit / (eff * br * rapidity_window * mat_antimat_fac * n_ev * delta_pt)
+print(f"Upper limit corrected: {upper_limit_corrected:.2e}")
+
+
+
 
 effMC = hRecMC.Clone("effMC")
 effMC.Divide(hRecMC.GetPtr(), hGenMC.GetPtr(), 1., 1., "B")
