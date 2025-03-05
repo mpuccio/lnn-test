@@ -171,8 +171,11 @@ for i in range(3):
   efficiencies[i] = sum_eff / sum_weights
 
 centrality_weights = [counterHist.Integral(counterHist.GetXaxis().FindBin(0.001), counterHist.GetXaxis().FindBin(9.999)), counterHist.Integral(counterHist.GetXaxis().FindBin(10.001), counterHist.GetXaxis().FindBin(29.999)), counterHist.Integral(counterHist.GetXaxis().FindBin(30.001), counterHist.GetXaxis().FindBin(49.999))]
-eff_reweighted = sum([a*b for a,b in zip(efficiencies, centrality_weights)]) / sum(centrality_weights)
-
+yield_weights = [bw_0_10.Integral(configurations['ptmin'], configurations['ptmax']), bw_10_30.Integral(configurations['ptmin'], configurations['ptmax']), bw_30_50.Integral(configurations['ptmin'], configurations['ptmax'])]
+print('efficiencies: ', efficiencies)
+print('centrality weights: ', centrality_weights)
+print('yield weights: ', yield_weights)
+eff_reweighted = sum([a*b*c for a,b,c in zip(efficiencies, centrality_weights, yield_weights)]) / sum([a*b for a,b in zip(centrality_weights, yield_weights)])
 ### upper limit calculation
 br = 0.25
 delta_pt = configurations['ptmax'] - configurations['ptmin']
