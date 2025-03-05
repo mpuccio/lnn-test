@@ -35,8 +35,9 @@ dfRecMC = dfMC.Filter("fIsReco").Filter(cuts).Filter(eventCuts)
 
 print(dfMC.GetColumnNames())
 outFile = TFile("output.root", "RECREATE")
-hRecMC = dfRecMC.Histo1D(("hData", "Data", 100, 0, 10.), "Pt")
-hGenMC = dfMC.Filter(eventCuts).Histo1D(("hMC", "MC", 100, 0, 10.), "GenPt")
+## centbins = [0, 10, 30, 50]
+hRecMC = dfRecMC.Histo2D(("hData", "Data", 100, 0, 10.,3, np.array([0, 10, 30, 50], dtype=float)), "Pt", "fCentralityFT0C")
+hGenMC = dfMC.Filter(eventCuts).Histo2D(("hMC", "MC", 100, 0, 10.,3, np.array([0, 10, 30, 50], dtype=float)), "GenPt", "fCentralityFT0C")
 hPID3H = dfData.Histo3D(("hPID3H", ";#it{p} (GeV/#it{c}) / q;TPC n#sigma; TOF m^{2} - m^{2}_{PDG}", 50, -10, 10., 50, -5, 5, 60, -3, 3), "signedP3H", "fNSigma3H", "mTOF3H_centred")
 hRpt = dfData.Histo2D(("hRpt", ";#it{p}_{T} (GeV/#it{c});R", 50, 0, 10., 100, 0, 35), "Pt", "DecR")
 hCosPAptMC = dfRecMC.Histo2D(("hCosPAptMC", ";#it{p}_{T} (GeV/#it{c});cos#it{#theta}_{P}", 20, 0, 10., 1000, 0.9, 1), "Pt", "cosPA")
@@ -80,14 +81,12 @@ cb.plotOn(frameMC)
 alpha.setConstant(True)
 n.setConstant(True)
 sigma.setConstant(True)
-print(f'chi2 MC: {frameMC.chiSquare()}')
 
 rooHistData = ROOT.RooDataHist("rooHistData", "rooHistData", ROOT.RooArgList(mass), hMassFit.GetPtr())
 bkg.fitTo(rooHistData)
 frame = mass.frame()
 rooHistData.plotOn(frame)
 bkg.plotOn(frame)
-print(f'chi2: {frame.chiSquare()}')
 
 
 # Create a workspace
@@ -141,36 +140,57 @@ low_limit = result.LowerLimit()
 error_up = result.UpperLimitEstimatedError()
 error_lower = result.LowerLimitEstimatedError()
 
-print(f"Upper limit at {confidence_level*100:.0f}% CL: {upper_limit:.2f} +- {error_up}")
-
-
 anResultsData = ROOT.TFile("data/AnalysisResults.root")
 counterHist = anResultsData.Get("lnn-reco-task/hCentFT0C")
 
+effMC = hRecMC.Clone("effMC")
+effMC.Divide(hRecMC.GetPtr(), hGenMC.GetPtr(), 1, 1, "B")
 
-eff = 0.03  ## needs to be rewighted
+file = ROOT.TFile.Open("bw/H3L_BWFit.root")
+bw_0_10 = file.Get("BlastWave_H3L_0_10")
+bw_10_30 = file.Get("BlastWave_H3L_10_30")
+bw_30_50 = file.Get("BlastWave_H3L_30_50")
+
+
+effBinStart = effMC.GetXaxis().FindBin(configurations['ptmin'] + 0.0001)
+effBinEnd = effMC.GetXaxis().FindBin(configurations['ptmax'] - 0.0001)
+bw_shapes = [bw_0_10, bw_10_30, bw_30_50]
+
+efficiencies = [0, 0, 0]
+for i in range(3): 
+  bw_cent = bw_shapes[i]
+  eff_cent = effMC.ProjectionX(f"eff_{i}", i + 1, i + 1)
+
+  sum_eff = 0
+  sum_weights = 0
+  for j in range(effBinStart, effBinEnd + 1):
+    bw_weight = bw_cent.Integral(effMC.GetXaxis().GetBinLowEdge(j), effMC.GetXaxis().GetBinUpEdge(j))
+    sum_eff += eff_cent.GetBinContent(j) * bw_weight
+    sum_weights += bw_weight
+  
+  efficiencies[i] = sum_eff / sum_weights
+
+centrality_weights = [counterHist.Integral(counterHist.GetXaxis().FindBin(0.001), counterHist.GetXaxis().FindBin(9.999)), counterHist.Integral(counterHist.GetXaxis().FindBin(10.001), counterHist.GetXaxis().FindBin(29.999)), counterHist.Integral(counterHist.GetXaxis().FindBin(30.001), counterHist.GetXaxis().FindBin(49.999))]
+yield_weights = [bw_0_10.Integral(configurations['ptmin'], configurations['ptmax']), bw_10_30.Integral(configurations['ptmin'], configurations['ptmax']), bw_30_50.Integral(configurations['ptmin'], configurations['ptmax'])]
+print('efficiencies: ', efficiencies)
+print('centrality weights: ', centrality_weights)
+print('yield weights: ', yield_weights)
+eff_reweighted = sum([a*b*c for a,b,c in zip(efficiencies, centrality_weights, yield_weights)]) / sum([a*b for a,b in zip(centrality_weights, yield_weights)])
+### upper limit calculation
 br = 0.25
 delta_pt = configurations['ptmax'] - configurations['ptmin']
 rapidity_window = 2
 mat_antimat_fac = 2
 n_ev = counterHist.Integral(counterHist.GetXaxis().FindBin(configurations['centmin'] + 0.001), counterHist.GetXaxis().FindBin(configurations['centmax'] - 0.001))
-
-upper_limit_corrected = upper_limit / (eff * br * rapidity_window * mat_antimat_fac * n_ev * delta_pt)
-print(f"Upper limit corrected: {upper_limit_corrected:.2e}")
+upper_limit_corrected = upper_limit / (eff_reweighted * br * rapidity_window * mat_antimat_fac * n_ev * delta_pt)
+print('-----------------------------------------------------------------')
+print(f"Raw upper limit counts at {confidence_level*100:.0f}% CL: {upper_limit:.2f} +- {error_up}")
+print(f'Eff: {eff_reweighted:.2}', ', B.R.: ', br, ', Rapidity window: ', rapidity_window, ', Avg mat/antimat factor: ', mat_antimat_fac, ', N_ev: ', n_ev, ', Delta pt: ', delta_pt) 
+print(f"Upper limit: {upper_limit_corrected:.2e}")
+hUpperLimit = TH1D("hUpperLimit", "Upper limit", 1, 0, 1)
+hUpperLimit.SetBinContent(1, upper_limit_corrected)
 
 outFile.cd()
-effMC = hRecMC.Clone("effMC")
-effMC.Divide(hRecMC.GetPtr(), hGenMC.GetPtr(), 1., 1., "B")
-effBinStart = effMC.GetXaxis().FindBin(configurations['ptmin'] + 0.0001)
-effBinEnd = effMC.GetXaxis().FindBin(configurations['ptmax'] - 0.0001)
-weights = [counterHist.Integral(counterHist.GetXaxis().FindBin(0.001), counterHist.GetXaxis().FindBin(9.999)), counterHist.Integral(counterHist.GetXaxis().FindBin(10.001), counterHist.GetXaxis().FindBin(29.999), counterHist.Integral(counterHist.GetXaxis().FindBin(30.001), counterHist.GetXaxis().FindBin(49.999)))]
-totWeight = 0
-efficiency = 0
-for i in range(effBinStart, effBinEnd + 1):
-  for j in range(3):
-    efficiency += weights[j] * effMC.GetBinContent(i)
-
-
 frame.Write("fitData")
 frameMC.Write("fitMC")
 hRpt.Write()
@@ -192,4 +212,5 @@ hDCAv0DaughPtMC.Write()
 hArmenterosPodolanski.Write()
 hArmenterosPodolanskiMC.Write()
 hMassFit.Write()
+hUpperLimit.Write()
 outFile.Close()
