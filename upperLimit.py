@@ -7,18 +7,18 @@ import numpy as np
 ROOT.EnableImplicitMT()
 eventCuts = "fCentralityFT0C < 50 && fCentralityFT0C > 0"
 cuts = "fNTPCclusPi > 60 && fNTPCclus3H > 100 && (MLambda0 < 1.1 || MLambda0 > 1.13) && (MK0s < 0.47 || MK0s > 0.53) && std::abs(fDcaPi) > 0.2 && cosPA > 0.9995 && fDcaV0Daug < 0.2 && std::abs(alpha) < 0.94 && qt > 0.005"
-fileData = TFile('/data3/fmazzasc/lambdann/data/AO2D.root')
-fileMC = TFile('/data3/fmazzasc/lambdann/mc/AO2D.root')
+fileData = TFile('data/AO2D.root')
+fileMC = TFile('mc/AO2D.root')
 chainData = TChain('O2lnncands')
 chainMC = TChain('O2mclnncands')
 for key in fileData.GetListOfKeys() :
     keyName = key.GetName()
     if 'DF_' in keyName :
-      chainData.Add(f'/data3/fmazzasc/lambdann/data/AO2D.root/{keyName}/{chainData.GetName()}')
+      chainData.Add(f'data/AO2D.root/{keyName}/{chainData.GetName()}')
 for key in fileMC.GetListOfKeys() :
     keyName = key.GetName()
     if 'DF_' in keyName :
-      chainMC.Add(f'/data3/fmazzasc/lambdann/mc/AO2D.root/{keyName}/{chainMC.GetName()}')
+      chainMC.Add(f'mc/AO2D.root/{keyName}/{chainMC.GetName()}')
 dfData = ROOT.RDataFrame(chainData).Define("Px3H", "fPt3H * std::cos(fPhi3H)").Define("Py3H", "fPt3H * std::sin(fPhi3H)").Define("Pz3H", "fPt3H * std::sinh(fEta3H)").Define("P3H", "std::hypot(fPt3H, Pz3H)").Define("mTOF3H_centred", "fMassTrTOF - 2.80892113298 * 2.80892113298").Define("signedP3H", "(fIsMatter * 2 - 1) * fTPCmom3H").Define("E3H", "std::hypot(P3H, 2.80892113298)").Define("EP", "std::hypot(P3H, 0.93827208816)").Define("EPiK0s", "std::hypot(P3H, 0.139570)").Define("PxPi", "fPtPi * std::cos(fPhiPi)").Define("PyPi", "fPtPi * std::sin(fPhiPi)").Define("PzPi", "fPtPi * std::sinh(fEtaPi)").Define("PPi", "std::hypot(fPtPi, PzPi)").Define("EPi", "std::hypot(PPi, 0.139570)").Define("Px", "Px3H + PxPi").Define("Py", "Py3H + PyPi").Define("Pz", "Pz3H + PzPi").Define("E", "E3H + EPi").Define("Pt", "std::hypot(Px, Py)").Define("P", "std::hypot(Pt, Pz)").Define("M", "std::sqrt(E * E - P * P)").Define("L", "std::hypot(fXDecVtx, fYDecVtx, fZDecVtx)").Define("ct", "L * 2.991 / std::hypot(Pt, Pz)").Define("DecR", "std::hypot(fXDecVtx + fXPrimVtx, fYDecVtx + fYPrimVtx)").Define("cosPA", "(Px * fXDecVtx + Py * fYDecVtx + Pz * fZDecVtx) / (P * L)").Define("MLambda0", "std::sqrt((EPi + EP) * (EPi + EP) - P * P)").Define("MK0s", "std::sqrt((EPi + EPiK0s) * (EPi + EPiK0s) - P * P)").Define("PxPos", "fIsMatter ? Px3H : PxPi").Define("PyPos", "fIsMatter ? Py3H : PyPi").Define("PzPos", "fIsMatter ? Pz3H : PzPi").Define("PxNeg", "!fIsMatter ? Px3H : PxPi").Define("PyNeg", "!fIsMatter ? Py3H : PyPi").Define("PzNeg", "!fIsMatter ? Pz3H : PzPi").Define("alpha", "(PxPos * Px + PyPos * Py + PzPos * Pz - PxNeg * Px - PyNeg * Py - PzNeg * Pz) / (PxPos * Px + PyPos * Py + PzPos * Pz + PxNeg * Px + PyNeg * Py + PzNeg * Pz)").Define("qt", "std::sqrt(std::pow(fIsMatter ? P3H : PPi ,2) - std::pow((Px * PxPos + Py * PyPos + Pz * PzPos) / P,2))") \
     .Filter(cuts).Filter(eventCuts)
 
@@ -140,7 +140,7 @@ print(f"Upper limit at {confidence_level*100:.0f}% CL: {upper_limit:.2f} +- {err
 
 
 eff = 0.03  ## needs to be rewighted
-br = 0.25 
+br = 0.25
 delta_pt = 4
 rapidity_window = 2
 mat_antimat_fac = 2
