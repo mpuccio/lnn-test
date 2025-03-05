@@ -1,12 +1,18 @@
 from ROOT import RDataFrame, TChain, TH1D, TCanvas, TFile, RooStats
 import ROOT
 import numpy as np
+import yaml
 
 # columns: { "DecR", "E", "E3H", "EPi", "GenPt", "L", "M", "Pt", "Px", "Px3H", "PxPi", "Py", "Py3H", "PyPi", "Pz", "Pz3H", "PzPi", "ct", "fCentralityFT0A", "fCentralityFT0C", "fCentralityFT0M", "fDca3H", "fDcaPi", "fDcaV0Daug", "fEta3H", "fEtaPi", "fFlags", "fGenEta", "fGenPhi", "fGenPt", "fGenPt3H", "fGenXDecVtx", "fGenYDecVtx", "fGenZDecVtx", "fITSclusterSizes3H", "fITSclusterSizesPi", "fIsMatter", "fIsReco", "fIsSignal", "fMassTrTOF", "fNSigma3H", "fNTPCclus3H", "fNTPCclusPi", "P3H", "fPhi3H", "fPhiPi", "fPt3H", "fPtPi", "fSurvivedEventSelection", "fTPCchi3H", "fTPCmom3H", "fTPCmomPi", "fTPCsignal3H", "fTPCsignalPi", "fXDecVtx", "fXPrimVtx", "fYDecVtx", "fYPrimVtx", "fZDecVtx", "fZPrimVtx", "genMatter", "mTOF3H_centred", "signedP3H" }
 
+with open("configurations.yaml", "r") as stream:
+  configurations = yaml.safe_load(stream)
+
 ROOT.EnableImplicitMT()
-eventCuts = "fCentralityFT0C < 50 && fCentralityFT0C > 0"
+eventCuts = f"fCentralityFT0C < {configurations['centmax']} && fCentralityFT0C > {configurations['centmin']}"
 cuts = "fNTPCclusPi > 60 && fNTPCclus3H > 100 && (MLambda0 < 1.1 || MLambda0 > 1.13) && (MK0s < 0.47 || MK0s > 0.53) && std::abs(fDcaPi) > 0.2 && cosPA > 0.9995 && fDcaV0Daug < 0.2 && std::abs(alpha) < 0.94 && qt > 0.005"
+ptcuts = f"Pt > {configurations['ptmin']} && Pt < {configurations['ptmax']}"
+
 fileData = TFile('data/AO2D.root')
 fileMC = TFile('mc/AO2D.root')
 chainData = TChain('O2lnncands')
@@ -50,8 +56,8 @@ hDCApt3HMC = dfRecMC.Histo2D(("hDCApt3HMC", ";#it{p}_{T} (GeV/#it{c});^{3}H DCA 
 hArmenterosPodolanski = dfData.Histo2D(("hArmenterosPodolanski", ";#alpha;#it{q}_{T} (GeV/#it{c})", 200, -1, 1, 500, 0, 0.5), "alpha", "qt")
 hArmenterosPodolanskiMC = dfRecMC.Histo2D(("hArmenterosPodolanskiMC", ";#alpha;#it{q}_{T} (GeV/#it{c})", 200, -1, 1, 500, 0, 0.5), "alpha", "qt")
 
-hMassFit = dfData.Filter("Pt > 4 && Pt < 8").Histo1D(("hMassFit", ";m_{^{3}H + #pi^{-} + c.c.} (GeV/#it{c}^{2})", 45, 2.975, 3.02), "M")
-hMassFitMC = dfRecMC.Filter("Pt > 4 && Pt < 8").Histo1D(("hMassFitMC", ";m_{^{3}H + #pi^{-} + c.c.} (GeV/#it{c}^{2})", 45, 2.975, 3.02), "M")
+hMassFit = dfData.Filter(ptcuts).Histo1D(("hMassFit", ";m_{^{3}H + #pi^{-} + c.c.} (GeV/#it{c}^{2})", 45, 2.975, 3.02), "M")
+hMassFitMC = dfRecMC.Filter(ptcuts).Histo1D(("hMassFitMC", ";m_{^{3}H + #pi^{-} + c.c.} (GeV/#it{c}^{2})", 45, 2.975, 3.02), "M")
 
 mass = ROOT.RooRealVar("mass", "mass", 2.991, hMassFit.GetXaxis().GetXmin(), hMassFit.GetXaxis().GetXmax())
 mu = ROOT.RooRealVar("mu", "#mu", 2.991, 2.989, 2.993)
@@ -138,28 +144,33 @@ error_lower = result.LowerLimitEstimatedError()
 print(f"Upper limit at {confidence_level*100:.0f}% CL: {upper_limit:.2f} +- {error_up}")
 
 
+anResultsData = ROOT.TFile("data/AnalysisResults.root")
+counterHist = anResultsData.Get("lnn-reco-task/hCentFT0C")
+
 
 eff = 0.03  ## needs to be rewighted
 br = 0.25
-delta_pt = 4
+delta_pt = configurations['ptmax'] - configurations['ptmin']
 rapidity_window = 2
 mat_antimat_fac = 2
-n_ev = 2.98e9
-
-
-
-
-
-
+n_ev = counterHist.Integral(counterHist.GetXaxis().FindBin(configurations['centmin'] + 0.001), counterHist.GetXaxis().FindBin(configurations['centmax'] - 0.001))
 
 upper_limit_corrected = upper_limit / (eff * br * rapidity_window * mat_antimat_fac * n_ev * delta_pt)
 print(f"Upper limit corrected: {upper_limit_corrected:.2e}")
 
-
-
-
+outFile.cd()
 effMC = hRecMC.Clone("effMC")
 effMC.Divide(hRecMC.GetPtr(), hGenMC.GetPtr(), 1., 1., "B")
+effBinStart = effMC.GetXaxis().FindBin(configurations['ptmin'] + 0.0001)
+effBinEnd = effMC.GetXaxis().FindBin(configurations['ptmax'] - 0.0001)
+weights = [counterHist.Integral(counterHist.GetXaxis().FindBin(0.001), counterHist.GetXaxis().FindBin(9.999)), counterHist.Integral(counterHist.GetXaxis().FindBin(10.001), counterHist.GetXaxis().FindBin(29.999), counterHist.Integral(counterHist.GetXaxis().FindBin(30.001), counterHist.GetXaxis().FindBin(49.999)))]
+totWeight = 0
+efficiency = 0
+for i in range(effBinStart, effBinEnd + 1):
+  for j in range(3):
+    efficiency += weights[j] * effMC.GetBinContent(i)
+
+
 frame.Write("fitData")
 frameMC.Write("fitMC")
 hRpt.Write()
