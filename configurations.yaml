@@ -2,3 +2,6 @@ centmin: 0
 centmax: 50
 ptmin: 4
 ptmax: 8
+cospa_variations: [0.9995, 0.99975, 0.9999]
+dcapi_variations: [0.2, 0.15, 0.25]
+dcav0daughters_variations: [0.2, 0.15, 0.25]
