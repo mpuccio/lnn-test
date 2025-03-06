@@ -174,9 +174,9 @@ for iTrial in range(len(hMassFit)):
   label.SetBorderSize(0)
   frame.addObject(label)
 
-  rebinUpperLimit = 3
+  rebinUpperLimit = 1
   upperLimitsMassHists.append(ROOT.TH1D(f"upperLimitsMass{iTrial}", "; m (GeV/#it{c}); Upper limit", int(hMassFit[iTrial].GetNbinsX() / rebinUpperLimit), hMassFit[iTrial].GetXaxis().GetXmin(), hMassFit[iTrial].GetXaxis().GetXmax()))
-  for iMass in range(upperLimitsMassHists[iTrial].GetNbinsX()):
+  for iMass in range(2, upperLimitsMassHists[iTrial].GetNbinsX() - 2):
     # Create a workspace
     workspace = ROOT.RooWorkspace(f"workspace{iTrial}_{iMass}")
     workspace.Import(rooHistData)
