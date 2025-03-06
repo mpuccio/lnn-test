@@ -193,6 +193,7 @@ for iTrial in range(len(hMassFit)):
     model_config.SetObservables(ROOT.RooArgSet(mass))
     model_config.SetNuisanceParameters(ROOT.RooArgSet())
     model_config.SetNuisanceParameters(ROOT.RooArgSet(n_bkg))
+    model_config.SetSnapshot(ROOT.RooArgSet(n_sig))
     oldValue = n_sig.getVal()
 
     # Create a null (background-only) model
