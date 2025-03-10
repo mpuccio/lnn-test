@@ -2,6 +2,8 @@ from ROOT import RDataFrame, TChain, TH1D, TCanvas, TFile, RooStats
 import ROOT
 import numpy as np
 import yaml
+import array
+import math
 
 # columns: { "DecR", "E", "E3H", "EPi", "GenPt", "L", "M", "Pt", "Px", "Px3H", "PxPi", "Py", "Py3H", "PyPi", "Pz", "Pz3H", "PzPi", "ct", "fCentralityFT0A", "fCentralityFT0C", "fCentralityFT0M", "fDca3H", "fDcaPi", "fDcaV0Daug", "fEta3H", "fEtaPi", "fFlags", "fGenEta", "fGenPhi", "fGenPt", "fGenPt3H", "fGenXDecVtx", "fGenYDecVtx", "fGenZDecVtx", "fITSclusterSizes3H", "fITSclusterSizesPi", "fIsMatter", "fIsReco", "fIsSignal", "fMassTrTOF", "fNSigma3H", "fNTPCclus3H", "fNTPCclusPi", "P3H", "fPhi3H", "fPhiPi", "fPt3H", "fPtPi", "fSurvivedEventSelection", "fTPCchi3H", "fTPCmom3H", "fTPCmomPi", "fTPCsignal3H", "fTPCsignalPi", "fXDecVtx", "fXPrimVtx", "fYDecVtx", "fYPrimVtx", "fZDecVtx", "fZPrimVtx", "genMatter", "mTOF3H_centred", "signedP3H" }
 
@@ -59,6 +61,7 @@ hMassLambdaPtMC = []
 hMassPt = []
 hDCAv0DaughPtMC = []
 hMassLambdaPt = []
+hMassK0sPt = []
 hDCAv0DaughPt = []
 hMassK0sPt = []
 hDCAptPi = []
@@ -88,6 +91,8 @@ for dcapi in configurations['dcapi_variations']:
           hMassPt.append(dfDataFiltered.Histo2D(("hMassPt", ";#it{p}_{T} (GeV/#it{c});m_{^{3}H + #pi^{-} + c.c.} (GeV/#it{c})^{2}", 20, 0, 10., 50, 2.97, 3.02), "Pt", "M"))
           hDCAv0DaughPtMC.append(dfRecMCFiltered.Histo2D(("hDCAv0DaughPtMC", ";#it{p}_{T} (GeV/#it{c});V0 daughters DCA (cm)", 20, 0, 10., 2000, 0, 1), "Pt", "fDcaV0Daug"))
           hMassLambdaPt.append(dfDataFiltered.Histo3D(("hMassLambdaPt", ";#it{p}_{T} (GeV/#it{c});m_{p + #pi^{-} + c.c.} (GeV/#it{c}^{2});m_{^{3}H + #pi^{-} + c.c.} (GeV/#it{c}^{2})", 20, 0, 10., 425, 1.075, 1.5, 80, 2.95, 3.03), "Pt", "MLambda0", "M"))
+          hMassK0sPt.append(dfDataFiltered.Histo3D(("hMassK0sPt", ";#it{p}_{T} (GeV/#it{c});m_{p + #pi^{-} + c.c.} (GeV/#it{c}^{2});m_{^{3}H + #pi^{-} + c.c.} (GeV/#it{c}^{2})", 20, 0, 10., 425, 1.075, 1.5, 80, 2.95, 3.03), "Pt", "MK0s", "M"))
+
           hDCAv0DaughPt.append(dfDataFiltered.Histo2D(("hDCAv0DaughPt", ";#it{p}_{T} (GeV/#it{c});V0 daughters DCA (cm)", 20, 0, 10., 2000, 0, 1), "Pt", "fDcaV0Daug"))
           hMassK0sPt.append(dfDataFiltered.Histo2D(("hMassK0sPt", ";#it{p}_{T} (GeV/#it{c});m_{#pi^{+} + #pi^{-}} (GeV/#it{c})^{2}", 20, 0, 10., 80, 0.455, 0.535), "Pt", "MK0s"))
           hDCAptPi.append(dfDataFiltered.Histo2D(("hDCAptPi", ";#it{p}_{T} (GeV/#it{c});#pi DCA (cm)", 20, 0, 10., 2000, -1, 1), "Pt", "fDcaPi"))
@@ -137,17 +142,18 @@ for iTrial in range(len(hMassFit)):
   mass = ROOT.RooRealVar("mass", "mass", 2.991, hMassFit[iTrial].GetXaxis().GetXmin(), hMassFit[iTrial].GetXaxis().GetXmax())
   mu = ROOT.RooRealVar("mu", "#mu", 2.991, hMassFit[iTrial].GetXaxis().GetXmin(), hMassFit[iTrial].GetXaxis().GetXmax())
   sigma = ROOT.RooRealVar("sigma", "#sigma", 0.002, 0.001, 0.01)
-  a1 = ROOT.RooRealVar("a1", "a1", 0., -1., 1.)
+  a1 = ROOT.RooRealVar("a1", "a1", 0., -10., 10.)
   bkg = ROOT.RooPolynomial("bkg", "bkg", mass, ROOT.RooArgList())
+  bkg1 = ROOT.RooExponential("bkg1", "bkg1", mass, a1)
   alpha0 = ROOT.RooRealVar("alpha0", "#alpha_{0}", 1., 0., 5.)
   n0 = ROOT.RooRealVar("n0", "n_{0}", 1., 0., 10.)
   alpha1 = ROOT.RooRealVar("alpha1", "#alpha_{1}", 1., 0., 5.)
   n1 = ROOT.RooRealVar("n1", "n_1", 1., 0., 10.)
   cb = ROOT.RooCrystalBall("cb", "cb", mass, mu, sigma, alpha0, n0, alpha1, n1)
-  signal = ROOT.RooGaussian("signal", "signal", mass, mu, sigma)
   n_sig = ROOT.RooRealVar("n_sig", "n_sig", 1000, -4000, 4000)
   n_bkg = ROOT.RooRealVar("n_bkg", "n_bkg", 1000, 0, 1e7)
   fulltpl = ROOT.RooAddPdf("fulltpl", "fulltpl", ROOT.RooArgList(cb, bkg), ROOT.RooArgList(n_sig, n_bkg))
+  fulltpl1 = ROOT.RooAddPdf("fulltpl1", "fulltpl1", ROOT.RooArgList(cb, bkg1), ROOT.RooArgList(n_sig, n_bkg))
 
   rooHistMC = ROOT.RooDataHist(f"rooHistMC{iTrial}", "rooHistMC", ROOT.RooArgList(mass), hMassFitMC[iTrial].GetPtr())
   cb.fitTo(rooHistMC)
@@ -181,6 +187,7 @@ for iTrial in range(len(hMassFit)):
     workspace = ROOT.RooWorkspace(f"workspace{iTrial}_{iMass}")
     workspace.Import(rooHistData)
     workspace.Import(fulltpl)
+    workspace.Import(fulltpl1)
 
     workspace.Print()
     # Set the confidence level
@@ -247,6 +254,7 @@ for iTrial in range(len(hMassFit)):
   hMassLambdaPtMC[iTrial].Write()
   hMassLambdaPt[iTrial].Write()
   hMassK0sPt[iTrial].Write()
+  hMassK0sPt[iTrial].Write()
   hDCAptPi[iTrial].Write()
   hDCAptPiMC[iTrial].Write()
   hDCApt3H[iTrial].Write()
@@ -265,10 +273,33 @@ for upperLimit in upperLimitsMassHists:
      if upperLimit.GetBinContent(i + 1) > topLimit.GetBinContent(i + 1):
        topLimit.SetBinContent(i + 1, upperLimit.GetBinContent(i + 1))
 topLimit.Write()
-shmPred = ROOT.TF1("shmPred", "469.23 * TMath::Exp(-x/0.155)", 2.975, 3.02)
-shmPred.Write()
+
+shmPred = ROOT.TF1("shmPred", "[0] * TMath::Exp(-x/0.155)", 2.975, 3.02)
+shmPred.SetParameter(0, configurations['h3l_yield']['value'] / math.exp(-configurations['h3l_mass']['value']/0.155))
+
+shm_unc = math.hypot(configurations['h3l_yield']['stat'],configurations['h3l_yield']['syst'])
+
+shm_x = []
+shm_y = []
+shm_yerr = []
+for iMass in range(1, upperLimitsMassHists[iTrial].GetNbinsX() + 1):
+  shm_x.append(upperLimitsMassHists[iTrial].GetXaxis().GetBinLowEdge(iMass))
+  shm_y.append(shmPred.Eval(shm_x[-1]))
+  shm_yerr.append(shm_unc)
+shm_x.append(upperLimitsMassHists[iTrial].GetXaxis().GetBinUpEdge(upperLimitsMassHists[iTrial].GetNbinsX()))
+shm_y.append(shmPred.Eval(shm_x[-1]))
+shm_yerr.append(shm_unc)
+
+shmGraph = ROOT.TGraphErrors(len(shm_x), array.array('f', shm_x), array.array('f', shm_y), array.array('f', [0.]*len(shm_x)), array.array('f', shm_yerr))
+shmGraph.SetFillStyle(3010)
+shmGraph.SetLineColor(ROOT.kRed)
+shmGraph.SetFillColor(ROOT.kRed)
+shmGraph.SetLineWidth(2)
+shmGraph.Write("shmGraph")
+
 variationCanvas = ROOT.TCanvas("variationCanvas", "variationCanvas", 800, 600)
-variationCanvas.DrawFrame(2.975, 1.e-7, 3.02, 2.5e-6, "; m (GeV/#it{c}^{2}); Upper limit")
+variationCanvas.DrawFrame(2.977, 1.e-7, 3.018, 2.5e-6, "; m (GeV/#it{c}^{2}); Upper limit")
+shmGraph.Draw("e3 same")
 for upperLimit in upperLimitsMassHists:
   upperLimit.Draw("plc l same")
 topLimit.SetLineColor(ROOT.kBlack)
@@ -276,6 +307,29 @@ topLimit.SetLineWidth(2)
 topLimit.SetMarkerStyle(20)
 topLimit.SetMarkerSize(0.5)
 topLimit.Draw("lp same")
+
+h3l_yield_value = array.array('f', [configurations['h3l_yield']['value']])
+h3l_yield_stat = array.array('f', [configurations['h3l_yield']['stat']])
+h3l_yield_syst = array.array('f', [configurations['h3l_yield']['syst']])
+h3l_mass_value = array.array('f', [configurations['h3l_mass']['value']])
+h3l_mass_stat = array.array('f', [configurations['h3l_mass']['stat']])
+
+h3l_stat = ROOT.TGraphErrors(1, h3l_mass_value, h3l_yield_value, h3l_mass_stat, h3l_yield_stat)
+h3l_syst = ROOT.TGraphErrors(1, h3l_mass_value, h3l_yield_value, h3l_mass_stat, h3l_yield_syst)
+h3l_stat.SetMarkerStyle(20)
+h3l_stat.SetMarkerSize(1)
+h3l_stat.SetMarkerColor(ROOT.kBlue)
+h3l_stat.SetLineColor(ROOT.kBlue)
+h3l_syst.SetMarkerStyle(20)
+h3l_syst.SetMarkerSize(1)
+h3l_syst.SetMarkerColor(ROOT.kBlue)
+h3l_syst.SetLineColor(ROOT.kBlue)
+h3l_syst.SetFillStyle(0)
+h3l_stat.Draw("p same")
+h3l_syst.Draw("p2 same")
+
 variationCanvas.Write()
 
+h3l_stat.Write()
+h3l_syst.Write()
 outFile.Close()
